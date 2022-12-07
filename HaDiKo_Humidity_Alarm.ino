@@ -2,7 +2,7 @@
 #include <math.h>
 #include <avr/sleep.h>
 #include "DHT.h" //Grove Temperature And Humidity Sensor (by Seeed Studio), v1.0.0 (!)
-#include "HumiditySensor.h"
+
 
 #define ALARM_START_HUMIDITY 65.0f
 #define ALARM_END_HUMIDITY 60.0f
@@ -31,18 +31,18 @@
 Adafruit_SSD1306 display(128,32);
 DHT dht(A1, DHT22);
 
-bool piezoOn = false;
-
 typedef enum { //don't change order! is being used as index
   STATE_NO_ALARM = 0,
   STATE_VIGILANCE,
-  STATE_ALARM
+  STATE_ALARM_PIEZO,
+  STATE_ALARM_SILENT
 } alarm_state_t;
 
 const char * alarm_state_str[] = { //don't change order
   "NO_ALARM",
   "VIGILANCE",
-  "ALARM"
+  "ALARM_PIEZO",
+  "ALARM_SILENT"
 };
 
 typedef struct {
@@ -75,6 +75,16 @@ bool readWeather(weatherData_t *weather) {
   return true;
 }
 
+void onOffScreen(bool onOff) {
+  if(onOff) {
+    digitalWrite(DISPLAY_VCC_PIN, HIGH);
+    delay(2500);
+  } else {
+    digitalWrite(DISPLAY_VCC_PIN, LOW);
+    TWCR = 0; //I2C connection reset
+  }
+}
+
 void initScreen(void) {
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.clearDisplay();
@@ -84,6 +94,14 @@ void initScreen(void) {
   display.setRotation(0);
   //screenOn = true;
   //screenOnTime = millis();
+}
+
+void onOffPiezo(bool onOff) {
+  if(onOff) {
+    digitalWrite(PIEZO_PIN, HIGH);
+  } else {
+    digitalWrite(PIEZO_PIN, LOW);
+  }
 }
 
 
@@ -96,37 +114,9 @@ bool goToSleep(unsigned int sleepSec) {
 
   bool buttonPressed = false;
 
-  if (sleepSec < 2) {sleepSec = 2;}
+  if (sleepSec < 2) {sleepSec = 2;} //avoid roll-over in next line
   sleepSec = ((sleepSec - 2) / 4) * 4;
-  //sleepSec = (sleepSec > 4) ? sleepSec : 4;
-  
-  /*if(screenOn) {
-    // can't sleep because screen needs millis() clock for shutdown timer
-    unsigned long pauseStart = millis();
-    while(1) {
-      if(!digitalRead(PUSHBUTTON_PIN)) {
-        buttonPressed = true;
-        break;
-      }
-      if((millis() - pauseStart) >= (sleepSec * (unsigned long) 1000)) {
-        break;
-      }
-    }
-    if(buttonPressed) {
-      DEBUG_PRINTLN(F("Button pressed!"));
-      if(piezoOn) {
-        digitalWrite(PIEZO_PIN, LOW);
-        DEBUG_PRINTLN(F("Piezo stop by button. Alarm mute start."));
-      }
-      screenOnTime = millis();
-    } else {
-      if((millis() - screenOnTime) >= (SCREEN_ON_DURATION_SEC * 1000)) { //this is roll-over safe
-        screenOn = false;
-        digitalWrite(DISPLAY_VCC_PIN, LOW);
-        TWCR = 0; //I2C connection reset
-      }
-    }
-  } else {*/
+
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   cli();
   //configure watchDog
@@ -162,22 +152,13 @@ bool goToSleep(unsigned int sleepSec) {
   
   if(buttonPressed) {
     DEBUG_PRINTLN(F("Button pressed!"));
-    if(piezoOn) {
-      digitalWrite(PIEZO_PIN, LOW);
-      DEBUG_PRINTLN(F("Piezo stop by button. Alarm mute start."));
-    }
-    //digitalWrite(DISPLAY_VCC_PIN, HIGH);
-    //delay(1500); //allow enough time for display to become operational. This gets added to the DHT's 1000ms of boot time to yield 2500ms before calling display.begin()
+    onOffPiezo(false);
   }
-  //}
-
+  
   digitalWrite(DHT_VCC_PIN, HIGH);
   dht.begin();
   delay(1000); //DHT needs time to boot
 
-  /*if(buttonPressed && !screenOn) {
-    initScreen();
-  }*/
   //returns bool that describes cause of wakeup
   //  true:  button was pressed
   //  false: sleep lasted sleepSec seconds and was woken up by Watchdog timer
@@ -185,12 +166,11 @@ bool goToSleep(unsigned int sleepSec) {
 }
 
 bool displayWeather(weatherData_t *weather, bool alarm) {
-  unsigned long pauseStart = millis();
+  unsigned long displayStart = millis();
   bool buttonPressed = false;
 
   //power up screen
-  digitalWrite(DISPLAY_VCC_PIN, HIGH);
-  delay(2500);
+  onOffScreen(true);
   initScreen();
 
   display.setCursor(0,0);
@@ -215,19 +195,14 @@ bool displayWeather(weatherData_t *weather, bool alarm) {
       if(!digitalRead(PUSHBUTTON_PIN)) {
         buttonPressed = true;
         DEBUG_PRINTLN(F("Button pressed!"));
-        if(piezoOn) {
-          digitalWrite(PIEZO_PIN, LOW);
-          DEBUG_PRINTLN(F("Piezo stop by button. Alarm mute start."));
-          piezoOn = false;
-        }
+        onOffPiezo(false);
       }
     }
-    if((millis() - pauseStart) >= (SCREEN_ON_DURATION_SEC * (unsigned long) 1000)) { //this is roll-over safe
+    if((millis() - displayStart) >= (SCREEN_ON_DURATION_SEC * (unsigned long) 1000)) { //this is roll-over safe
       break;
     }
   }
-  digitalWrite(DISPLAY_VCC_PIN, LOW);
-  TWCR = 0; //I2C connection reset
+  onOffScreen(false);
 
   if(buttonPressed) {
     return true;
@@ -244,7 +219,9 @@ alarm_state_t stateNoAlarm (void) {
     buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
     if(readWeather(&currentWeather)) {
       if(currentWeather.humid >= ALARM_START_HUMIDITY) {
-        displayWeather(&currentWeather, true);
+        if(buttonPressed) {
+          displayWeather(&currentWeather, true);
+        }
         return STATE_VIGILANCE;
       }
       if(buttonPressed) {
@@ -262,83 +239,100 @@ alarm_state_t stateVigilance (void) {
     buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
     if(readWeather(&currentWeather)) {
       if(currentWeather.humid < ALARM_START_HUMIDITY) {
-        displayWeather(&currentWeather, false);
+        if(buttonPressed) {
+          displayWeather(&currentWeather, false);
+        }
         return STATE_NO_ALARM;
       }
       if(buttonPressed) { //button was pressed, don't count this
         i--;
         displayWeather(&currentWeather, true);
       }
+    } else { //read fail
+      return STATE_NO_ALARM;
     }
   }
+  
   //Alarm!
-  
-  piezoOn = true;
-  digitalWrite(PIEZO_PIN, HIGH);
-  DEBUG_PRINTLN(F("Piezo start"));
-  displayWeather(&currentWeather, true);
-    piezoOn = false;
-  }
-  
-  return STATE_ALARM;
+  return STATE_ALARM_PIEZO;
 }
 
-alarm_state_t stateAlarm (void) {
+alarm_state_t stateAlarmPiezo (void) {
   weatherData_t currentWeather;
+
+  if(!readWeather(&currentWeather)) {
+    return STATE_NO_ALARM;
+  }
+  if(currentWeather.humid < ALARM_START_HUMIDITY) {
+    return STATE_NO_ALARM;
+  }
   
-  while(1) {
-    int j;
-    if(piezoOn) {
-      j = PIEZO_MAX_DURATION_SEC / MEASURE_CYCLE_SEC;
-    } else {
-      j = PIEZO_OFF_DURATION_SEC / MEASURE_CYCLE_SEC;
+  onOffPiezo(true);
+
+  if(displayWeather(&currentWeather, true)) { //button pressed, piezo already off
+    return STATE_ALARM_SILENT;
+  }
+
+  int i;
+  const int j = (PIEZO_MAX_DURATION_SEC - SCREEN_ON_DURATION_SEC) / MEASURE_CYCLE_SEC;
+  bool buttonPressed;
+ 
+  for(i=j;i>0;i--) {
+    buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    if(!readWeather(&currentWeather)) {
+      return STATE_NO_ALARM;
+    }
+    if(currentWeather.humid <= ALARM_END_HUMIDITY) {
+      if(buttonPressed) {
+        displayWeather(&currentWeather, false);
+      }
+      return STATE_NO_ALARM;
+    }
+    if(buttonPressed) {
+      displayWeather(&currentWeather, true);
+      return STATE_ALARM_SILENT;
+    }
+  } 
+  
+  return STATE_ALARM_SILENT;
+}
+
+
+alarm_state_t stateAlarmSilent(void) {
+  weatherData_t currentWeather;
+  int i;
+  const int j = PIEZO_OFF_DURATION_SEC / MEASURE_CYCLE_SEC;
+  bool buttonPressed;
+  
+  for(i=j;i>0;i--) {
+    buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    if(!readWeather(&currentWeather)) {
+      return STATE_NO_ALARM;
+    }
+    if(currentWeather.humid <= ALARM_END_HUMIDITY) {
+      if(buttonPressed) {
+        displayWeather(&currentWeather, false);
+      }
+      return STATE_NO_ALARM;
     }
 
-    int i;
-    bool buttonPressed;
-    for(i=j;i>0;i--) {
-      buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
-      if(buttonPressed) { //button was pressed
-        if(piezoOn) {
-          piezoOn = false;
-          break;
-        }
-        i++;
-      }
-      if(readWeather(&currentWeather)) {
-        if(currentWeather.humid <= ALARM_END_HUMIDITY) {
-          displayWeather(&currentWeather, false);
-          if(piezoOn) {
-            digitalWrite(PIEZO_PIN, LOW);
-            DEBUG_PRINTLN(F("Piezo stop by end of alarm"));
-            piezoOn = false;
-          }
-          return STATE_NO_ALARM;
-        }
-        displayWeather(&currentWeather, true);
-      }
-    }
-
-    if(i==0) { //button was NOT pressed = TIMEOUT
-      if(piezoOn) {
-        digitalWrite(PIEZO_PIN, LOW);
-        DEBUG_PRINTLN(F("Piezo stop by timeout. Alarm mute start."));
-        piezoOn = false;
-      } else {
-        digitalWrite(PIEZO_PIN, HIGH);
-        DEBUG_PRINTLN(F("Alarm mute stop by timeout. Piezo start."));
-        piezoOn = true;
-      }
+    if(buttonPressed) {
+      displayWeather(&currentWeather, true);
+      i++;
     }
   }
+
+  return STATE_ALARM_PIEZO;
 }
+
 
 typedef alarm_state_t (*state_run_t) (void);
 
 state_run_t state_run[] = { //don't change order! index is alarm_state_t
   stateNoAlarm,
   stateVigilance,
-  stateAlarm
+  stateAlarmPiezo,
+  stateAlarmSilent
 };
 
 void setup() {
