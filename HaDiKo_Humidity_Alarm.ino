@@ -10,7 +10,7 @@
 #define VIGILANCE_DURATION_SEC 60 //should be a multiple of MEASURE_CYCLE_SEC
 #define PIEZO_MAX_DURATION_SEC 10 //should be a multiple of MEASURE_CYCLE_SEC
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
-#define SCREEN_ON_DURATION_SEC 5
+#define SCREEN_ON_DURATION_SEC 10
 
 #define PIEZO_PIN 13
 #define DISPLAY_VCC_PIN 17
@@ -77,10 +77,10 @@ bool readWeather(weatherData_t *weather) {
 
 void onOffScreen(bool onOff) {
   if(onOff) {
-    digitalWrite(DISPLAY_VCC_PIN, HIGH);
+    digitalWrite(DISPLAY_VCC_PIN, LOW); //inverted logic because PNP
     delay(2500);
   } else {
-    digitalWrite(DISPLAY_VCC_PIN, LOW);
+    digitalWrite(DISPLAY_VCC_PIN, HIGH);
     TWCR = 0; //I2C connection reset
   }
 }
@@ -166,7 +166,6 @@ bool goToSleep(unsigned int sleepSec) {
 }
 
 bool displayWeather(weatherData_t *weather, bool alarm) {
-  unsigned long displayStart = millis();
   bool buttonPressed = false;
 
   //power up screen
@@ -189,6 +188,8 @@ bool displayWeather(weatherData_t *weather, bool alarm) {
   display.print(weather->humid, 1);
   display.print(" % ");
   display.display();
+
+  unsigned long displayStart = millis();
 
   while(1) {
     if(!buttonPressed) {
@@ -341,6 +342,7 @@ void setup() {
   Serial.begin(9600);
 #endif
   pinMode(PIEZO_PIN, OUTPUT);
+  digitalWrite(DISPLAY_VCC_PIN, HIGH); //Pin is high directly when declaring output
   pinMode(DISPLAY_VCC_PIN, OUTPUT);
   pinMode(DHT_VCC_PIN, OUTPUT);
   
