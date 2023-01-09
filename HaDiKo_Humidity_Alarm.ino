@@ -1,7 +1,7 @@
 #include <Adafruit_SSD1306.h>
 #include <math.h>
 #include <avr/sleep.h>
-#include "DHT.h" //Grove Temperature And Humidity Sensor (by Seeed Studio), v1.0.0 (!)
+#include "TempHumSensor.h"
 
 
 #define ALARM_START_HUMIDITY 65.0f
@@ -17,7 +17,7 @@
 #define DHT_VCC_PIN 16
 #define PUSHBUTTON_PIN 2
 
-//#define APP_DEBUG
+#define APP_DEBUG
 
 #ifdef APP_DEBUG
   #define DEBUG_PRINT(...)		Serial.print(__VA_ARGS__)
@@ -45,10 +45,6 @@ const char * alarm_state_str[] = { //don't change order
   "ALARM_SILENT"
 };
 
-typedef struct {
-  float temp;
-  float humid;
-} weatherData_t;
 
 bool readWeather(weatherData_t *weather) {
   float h;
