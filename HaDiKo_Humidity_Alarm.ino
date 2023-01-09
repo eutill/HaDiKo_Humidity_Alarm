@@ -6,9 +6,9 @@
 
 #define ALARM_START_HUMIDITY 65.0f
 #define ALARM_END_HUMIDITY 60.0f
-#define MEASURE_CYCLE_SEC 10
+#define MEASURE_CYCLE_SEC 20
 #define VIGILANCE_DURATION_SEC 60 //should be a multiple of MEASURE_CYCLE_SEC
-#define PIEZO_MAX_DURATION_SEC 10 //should be a multiple of MEASURE_CYCLE_SEC
+#define PIEZO_MAX_DURATION_SEC 20 //should be a multiple of MEASURE_CYCLE_SEC
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
 #define SCREEN_ON_DURATION_SEC 10
 
@@ -17,7 +17,7 @@
 #define DHT_VCC_PIN 16
 #define PUSHBUTTON_PIN 2
 
-#define APP_DEBUG
+//#define APP_DEBUG
 
 #ifdef APP_DEBUG
   #define DEBUG_PRINT(...)		Serial.print(__VA_ARGS__)
@@ -77,11 +77,17 @@ bool readWeather(weatherData_t *weather) {
 
 void onOffScreen(bool onOff) {
   if(onOff) {
+    pinMode(DISPLAY_VCC_PIN, OUTPUT);
     digitalWrite(DISPLAY_VCC_PIN, LOW); //inverted logic because PNP
     delay(2500);
   } else {
-    digitalWrite(DISPLAY_VCC_PIN, HIGH);
+    pinMode(DISPLAY_VCC_PIN, INPUT);
+    //digitalWrite(DISPLAY_VCC_PIN, HIGH);
     TWCR = 0; //I2C connection reset
+    pinMode(18, INPUT);
+    digitalWrite(18, LOW);
+    pinMode(19, INPUT);
+    digitalWrite(19, LOW);
   }
 }
 
@@ -111,6 +117,7 @@ ISR(INT0_vect) {EIMSK &= ~(1 << INT0);}
 bool goToSleep(unsigned int sleepSec) {
   Serial.flush();
   digitalWrite(DHT_VCC_PIN, LOW);
+  pinMode(DHT_VCC_PIN, INPUT);
 
   bool buttonPressed = false;
 
@@ -155,6 +162,7 @@ bool goToSleep(unsigned int sleepSec) {
     onOffPiezo(false);
   }
   
+  pinMode(DHT_VCC_PIN, OUTPUT);
   digitalWrite(DHT_VCC_PIN, HIGH);
   dht.begin();
   delay(1000); //DHT needs time to boot
@@ -342,8 +350,8 @@ void setup() {
   Serial.begin(9600);
 #endif
   pinMode(PIEZO_PIN, OUTPUT);
-  digitalWrite(DISPLAY_VCC_PIN, HIGH); //Pin is high directly when declaring output
-  pinMode(DISPLAY_VCC_PIN, OUTPUT);
+  //digitalWrite(DISPLAY_VCC_PIN, HIGH); //Pin is high directly when declaring output
+  //pinMode(DISPLAY_VCC_PIN, OUTPUT);
   pinMode(DHT_VCC_PIN, OUTPUT);
   
   pinMode(PUSHBUTTON_PIN, INPUT_PULLUP);
