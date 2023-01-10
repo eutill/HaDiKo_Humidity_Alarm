@@ -15,7 +15,7 @@ void DHT::begin(void) {
   _lastreadtime = 0;
 }
 
-//boolean S == Scale.  True == Farenheit; False == Celcius
+//boolean S == Scale.  True == Fahrenheit; False == Celsius
 float DHT::readTemperature(bool S) {
   float f;
 
@@ -24,8 +24,7 @@ float DHT::readTemperature(bool S) {
     case DHT11:
       f = data[2];
       if(S)
-      	f = convertCtoF(f);
-      	
+        f = convertCtoF(f);
       return f;
     case DHT22:
     case DHT21:
@@ -34,10 +33,9 @@ float DHT::readTemperature(bool S) {
       f += data[3];
       f /= 10;
       if (data[2] & 0x80)
-	f *= -1;
+        f *= -1;
       if(S)
-	f = convertCtoF(f);
-
+        f = convertCtoF(f);
       return f;
     }
   }
@@ -46,7 +44,7 @@ float DHT::readTemperature(bool S) {
 }
 
 float DHT::convertCtoF(float c) {
-	return c * 9 / 5 + 32;
+  return c * 9 / 5 + 32;
 }
 
 float DHT::readHumidity(void) {
@@ -67,6 +65,44 @@ float DHT::readHumidity(void) {
   }
   //Serial.print("Read fail");
   return NAN;
+}
+
+bool DHT::readWeather(weatherData_t *myWeather, bool S) {
+  if(myWeather == NULL)  {
+    return false;
+  }
+  if(!read()) {
+    return false;
+  }
+  float f;
+  switch(_type) {
+    case DHT11:
+      myWeather->humid = data[0];
+      f = data[2];
+      if(S) {
+        f = convertCtoF(f);
+      }
+      myWeather->temp = f;
+      return true;
+    case DHT22:
+    case DHT21:
+      f = data[0];
+      f *= 256;
+      f += data[1];
+      f /= 10;
+      myWeather->humid = f;
+      f = data[2] & 0x7F;
+      f *= 256;
+      f += data[3];
+      f /= 10;
+      if (data[2] & 0x80)
+        f *= -1;
+      if(S)
+        f = convertCtoF(f);
+      myWeather->temp = f;
+      return true;
+  }
+  return false;
 }
 
 

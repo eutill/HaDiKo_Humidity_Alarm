@@ -37,5 +37,5 @@ class DHT {
   float readTemperature(bool S=false);
   float convertCtoF(float);
   float readHumidity(void);
-
+  bool readWeather(weatherData_t * myWeather = NULL, bool S = false);
 };

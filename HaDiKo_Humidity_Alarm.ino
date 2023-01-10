@@ -45,7 +45,7 @@ const char * alarm_state_str[] = { //don't change order
   "ALARM_SILENT"
 };
 
-
+/*
 bool readWeather(weatherData_t *weather) {
   float h;
   float t;
@@ -69,6 +69,22 @@ bool readWeather(weatherData_t *weather) {
   DEBUG_PRINTLN(h, 1);
 
   return true;
+}*/
+
+bool readWeather(weatherData_t *weather) {
+  for(int i=0;i<3;i++) {
+    if(dht.readWeather(weather)) {
+      if(!(weather->humid == 0.0f)) {
+        DEBUG_PRINT("Temperature:");
+        DEBUG_PRINT(weather->temp, 1);
+        DEBUG_PRINT(" Humidity:");
+        DEBUG_PRINTLN(weather->humid, 1);
+        return true;
+      }
+    }
+    delay(200);
+  }
+  return false;
 }
 
 void onOffScreen(bool onOff) {
