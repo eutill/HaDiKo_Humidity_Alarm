@@ -127,7 +127,9 @@ ISR(WDT_vect) {}
 ISR(INT0_vect) {EIMSK &= ~(1 << INT0);}
 
 bool goToSleep(unsigned int sleepSec) {
+#ifdef APP_DEBUG
   Serial.flush();
+#endif
   digitalWrite(DHT_VCC_PIN, LOW);
   pinMode(DHT_VCC_PIN, INPUT);
 
@@ -225,11 +227,7 @@ bool displayWeather(weatherData_t *weather, bool alarm) {
   }
   onOffScreen(false);
 
-  if(buttonPressed) {
-    return true;
-  } else {
-    return false;
-  }
+  return buttonPressed;
 }
 
 
@@ -315,6 +313,7 @@ alarm_state_t stateAlarmPiezo (void) {
     }
   } 
   
+  onOffPiezo(false);
   return STATE_ALARM_SILENT;
 }
 

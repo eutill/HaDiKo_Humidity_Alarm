@@ -122,6 +122,7 @@ boolean DHT::read(void) {
     _lastreadtime = 0;
   }
   if (!firstreading && ((currenttime - _lastreadtime) < 2000)) {
+    digitalWrite(_pin, LOW);
     return true; // return last correct measurement
     //delay(2000 - (currenttime - _lastreadtime));
   }
