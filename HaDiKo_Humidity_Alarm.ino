@@ -6,18 +6,18 @@
 
 #define ALARM_START_HUMIDITY 65.0f
 #define ALARM_END_HUMIDITY 60.0f
-#define MEASURE_CYCLE_SEC 20
+#define MEASURE_CYCLE_SEC 60
 #define VIGILANCE_DURATION_SEC 60 //should be a multiple of MEASURE_CYCLE_SEC
-#define PIEZO_MAX_DURATION_SEC 20 //should be a multiple of MEASURE_CYCLE_SEC
+#define PIEZO_MAX_DURATION_SEC 20 //should be greater than SCREEN_ON_DURATION_SEC
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
 #define SCREEN_ON_DURATION_SEC 10
 
-#define PIEZO_PIN 13
+#define PIEZO_PIN 9
 #define DISPLAY_VCC_PIN 17
 #define DHT_VCC_PIN 16
 #define PUSHBUTTON_PIN 2
 
-#define APP_DEBUG
+//#define APP_DEBUG
 
 #ifdef APP_DEBUG
   #define DEBUG_PRINT(...)		Serial.print(__VA_ARGS__)
@@ -292,12 +292,20 @@ alarm_state_t stateAlarmPiezo (void) {
     return STATE_ALARM_SILENT;
   }
 
-  int i;
-  const int j = (PIEZO_MAX_DURATION_SEC - SCREEN_ON_DURATION_SEC) / MEASURE_CYCLE_SEC;
+  int i, j;
+  unsigned int sleepDuration;
+  if(MEASURE_CYCLE_SEC > (PIEZO_MAX_DURATION_SEC - SCREEN_ON_DURATION_SEC)) {
+    sleepDuration = PIEZO_MAX_DURATION_SEC - SCREEN_ON_DURATION_SEC;
+    j = 1;
+  } else {
+    sleepDuration = MEASURE_CYCLE_SEC;
+    j = (PIEZO_MAX_DURATION_SEC - SCREEN_ON_DURATION_SEC) / MEASURE_CYCLE_SEC;
+  }
+  
   bool buttonPressed;
  
   for(i=j;i>0;i--) {
-    buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    buttonPressed = goToSleep(sleepDuration);
     if(!readWeather(&currentWeather)) {
       return STATE_NO_ALARM;
     }
