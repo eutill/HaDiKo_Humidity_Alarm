@@ -11,6 +11,7 @@
 #define PIEZO_MAX_DURATION_SEC 20 //should be greater than SCREEN_ON_DURATION_SEC
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
 #define SCREEN_ON_DURATION_SEC 10
+#define MAX_PIEZO_CYCLES 2
 
 #define PIEZO_PIN 9
 #define DISPLAY_VCC_PIN 17
@@ -45,6 +46,8 @@ const char * alarm_state_str[] = { //don't change order
   "ALARM_SILENT"
 };
 
+uint8_t currPiezoCycle = 0;
+
 /*
 bool readWeather(weatherData_t *weather) {
   float h;
@@ -74,7 +77,7 @@ bool readWeather(weatherData_t *weather) {
 bool readWeather(weatherData_t *weather) {
   for(int i=0;i<3;i++) {
     if(dht.readWeather(weather)) {
-      if(!(weather->humid == 0.0f)) {
+      if(!(weather->humid == 0.0f) && (weather->humid <= 100.0f)) {
         DEBUG_PRINT("Temperature:");
         DEBUG_PRINT(weather->temp, 1);
         DEBUG_PRINT(" Humidity:");
@@ -232,6 +235,7 @@ bool displayWeather(weatherData_t *weather, bool alarm) {
 
 
 alarm_state_t stateNoAlarm (void) {
+  currPiezoCycle = 0;
   weatherData_t currentWeather;
   bool buttonPressed;
   while(1) {
@@ -277,6 +281,11 @@ alarm_state_t stateVigilance (void) {
 }
 
 alarm_state_t stateAlarmPiezo (void) {
+  if(currPiezoCycle == MAX_PIEZO_CYCLES) {
+    return STATE_ALARM_SILENT;
+  }
+  currPiezoCycle++;
+
   weatherData_t currentWeather;
 
   if(!readWeather(&currentWeather)) {
@@ -303,26 +312,30 @@ alarm_state_t stateAlarmPiezo (void) {
   }
   
   bool buttonPressed;
+  alarm_state_t nextState = STATE_ALARM_SILENT;
  
   for(i=j;i>0;i--) {
     buttonPressed = goToSleep(sleepDuration);
     if(!readWeather(&currentWeather)) {
-      return STATE_NO_ALARM;
+      nextState = STATE_NO_ALARM;
+      break;
     }
     if(currentWeather.humid <= ALARM_END_HUMIDITY) {
       if(buttonPressed) {
         displayWeather(&currentWeather, false);
       }
-      return STATE_NO_ALARM;
+      nextState = STATE_NO_ALARM;
+      break;
     }
     if(buttonPressed) {
       displayWeather(&currentWeather, true);
-      return STATE_ALARM_SILENT;
+      nextState = STATE_ALARM_SILENT;
+      break;
     }
   } 
   
   onOffPiezo(false);
-  return STATE_ALARM_SILENT;
+  return nextState;
 }
 
 
