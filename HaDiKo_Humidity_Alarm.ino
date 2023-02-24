@@ -12,7 +12,7 @@
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
 #define SCREEN_ON_DURATION_SEC 10
 #define MAX_PIEZO_CYCLES 2
-#define LOW_BATT_THR 3200 //mV
+#define LOW_BATT_THR 3350.0 //mV, float!
 
 #define PIEZO_PIN 9
 #define DISPLAY_VCC_PIN 17
@@ -21,7 +21,7 @@
 #define BATT_ADC_PIN A0
 #define BATT_VOLT_DIV_GND_PIN 10
 
-#define APP_DEBUG
+//#define APP_DEBUG
 
 #ifdef APP_DEBUG
   #define DEBUG_PRINT(...)		Serial.print(__VA_ARGS__)
@@ -55,21 +55,24 @@ bool battOk = true;
 
 bool checkBatt() {
   int i;
-  unsigned int avg_voltage = 0;
-  unsigned int battVolt;
+  float avgVolt = 0;
+  float battVolt;
+  unsigned int adcVal;
   analogReference(INTERNAL);
+  ADCSRA |= (1 << ADEN);
   pinMode(BATT_VOLT_DIV_GND_PIN, OUTPUT);
   for(i=0;i<10;i++) {
-    battVolt = analogRead(BATT_ADC_PIN);
+    adcVal = analogRead(BATT_ADC_PIN);
     //discard first five readings due to inaccuracies and average the next 5
     if(i>4) {
-      avg_voltage += battVolt;
+      avgVolt += adcVal;
     }
   }
   pinMode(BATT_VOLT_DIV_GND_PIN, INPUT);
-  avg_voltage /= 5;
-  battVolt = map(avg_voltage, 0, 1023, 0, 4559); //last value: how many mV get converted to 1.1V (here: 1.054V) through the voltage divider, depends on exact values of resistors
-  battVolt += 22; //voltage divider between Vcc and 0.022V ("GND" on BATT_VOLT_DIV_GND_PIN)
+  ADCSRA &= ~(1 << ADEN);
+  avgVolt /= 5.0;
+  avgVolt *= (1080.0/1024.0); //1080 mV is Vref, corresponding to 1024 ADC value
+  battVolt = (avgVolt - 22) * 3.32587 + avgVolt; //voltage divider is between Vcc and ~22mV ("GND" on BATT_VOLT_DIV_GND_PIN), 3.32587 is ratio between R1 and R2
 #ifdef APP_DEBUG
   DEBUG_PRINTLN(battVolt);
 #endif
@@ -395,7 +398,7 @@ void setup() {
   pinMode(PUSHBUTTON_PIN, INPUT_PULLUP);
 
   battOk = checkBatt();
-  ADCSRA = 0x00; //turn ADC off
+  ADCSRA &= ~(1 << ADEN); //turn ADC off
   ACSR = (1 << ACD); //turn AC off
 }
 
