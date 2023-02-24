@@ -12,11 +12,14 @@
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
 #define SCREEN_ON_DURATION_SEC 10
 #define MAX_PIEZO_CYCLES 2
+#define LOW_BATT_THR 3200 //mV
 
 #define PIEZO_PIN 9
 #define DISPLAY_VCC_PIN 17
 #define DHT_VCC_PIN 16
 #define PUSHBUTTON_PIN 2
+#define BATT_ADC_PIN A0 //Arduino-Pin 14, phys. Pin 23
+#define BATT_VOLT_DIV_GND_PIN 10 //phys. Pin 16
 
 //#define APP_DEBUG
 
@@ -47,6 +50,7 @@ const char * alarm_state_str[] = { //don't change order
 };
 
 uint8_t currPiezoCycle = 0;
+bool battOk = true;
 
 /*
 bool readWeather(weatherData_t *weather) {
@@ -73,6 +77,32 @@ bool readWeather(weatherData_t *weather) {
 
   return true;
 }*/
+
+bool checkBatt() {
+  int i;
+  unsigned int avg_voltage = 0;
+  unsigned int battVolt;
+  analogReference(INTERNAL);
+  pinMode(BATT_VOLT_DIV_GND_PIN, OUTPUT);
+  for(i=0;i<10;i++) {
+    battVolt = analogRead(BATT_ADC_PIN);
+    //discard first five readings due to inaccuracies and average the next 5
+    if(i>4) {
+      avg_voltage += battVolt;
+    }
+  }
+  pinMode(BATT_VOLT_DIV_GND_PIN, INPUT);
+  avg_voltage /= 5;
+  battVolt = map(avg_voltage, 0, 1023, 0, 4758); //last value: how many mV get converted to 1.1V through the voltage divider, depends on exact values of resistors
+#ifdef APP_DEBUG
+  DEBUG_PRINTLN(battVolt);
+#endif
+  if(battVolt < LOW_BATT_THR) {
+    return false;
+  } else {
+    return true;
+  }
+}
 
 bool readWeather(weatherData_t *weather) {
   for(int i=0;i<3;i++) {
@@ -200,14 +230,16 @@ bool displayWeather(weatherData_t *weather, bool alarm) {
   display.setCursor(0,0);
   display.clearDisplay();
   
-  if(!alarm) {
+  if(alarm) { //Instead of temperature, alarm is printed
+    display.println(F("ALARM"));
+  } else if(!battOk) {
+    display.println(F("Low batt!"));
+  } else {
     display.print(F("T "));
     display.print(weather->temp, 1);
     display.print(" ");
     display.write(0xF8);
     display.println("C");
-  } else { //Instead of temperature, alarm is printed
-    display.println(F("ALARM"));
   }
   display.print(F("H "));
   display.print(weather->humid, 1);
@@ -240,8 +272,11 @@ alarm_state_t stateNoAlarm (void) {
   bool buttonPressed;
   while(1) {
     buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    if(battOk) {
+      battOk = checkBatt();
+    }
     if(readWeather(&currentWeather)) {
-      if(currentWeather.humid >= ALARM_START_HUMIDITY) {
+      if((currentWeather.humid >= ALARM_START_HUMIDITY) && battOk) {
         if(buttonPressed) {
           displayWeather(&currentWeather, true);
         }
