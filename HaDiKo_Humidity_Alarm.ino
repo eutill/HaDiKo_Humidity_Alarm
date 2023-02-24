@@ -79,7 +79,6 @@ bool readWeather(weatherData_t *weather) {
 }*/
 
 bool checkBatt() {
-  return true;
   int i;
   unsigned int avg_voltage = 0;
   unsigned int battVolt;
@@ -274,9 +273,6 @@ alarm_state_t stateNoAlarm (void) {
   bool buttonPressed;
   while(1) {
     buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
-    if(battOk) {
-      battOk = checkBatt();
-    }
     if(readWeather(&currentWeather)) {
       if((currentWeather.humid >= ALARM_START_HUMIDITY) && battOk) {
         if(buttonPressed) {
@@ -285,6 +281,9 @@ alarm_state_t stateNoAlarm (void) {
         return STATE_VIGILANCE;
       }
       if(buttonPressed) {
+        if(battOk) {
+          battOk = checkBatt();
+        }
         displayWeather(&currentWeather, false);
       }
     }
@@ -425,6 +424,7 @@ void setup() {
   
   pinMode(PUSHBUTTON_PIN, INPUT_PULLUP);
 
+  battOk = checkBatt();
   ADCSRA = 0x00; //turn ADC off
   ACSR = (1 << ACD); //turn AC off
 }
