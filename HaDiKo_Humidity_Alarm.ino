@@ -18,8 +18,8 @@
 #define DISPLAY_VCC_PIN 17
 #define DHT_VCC_PIN 16
 #define PUSHBUTTON_PIN 2
-#define BATT_ADC_PIN A0 //Arduino-Pin 14, phys. Pin 23
-#define BATT_VOLT_DIV_GND_PIN 10 //phys. Pin 16
+#define BATT_ADC_PIN A0
+#define BATT_VOLT_DIV_GND_PIN 10
 
 #define APP_DEBUG
 
@@ -52,31 +52,6 @@ const char * alarm_state_str[] = { //don't change order
 uint8_t currPiezoCycle = 0;
 bool battOk = true;
 
-/*
-bool readWeather(weatherData_t *weather) {
-  float h;
-  float t;
-  for(int i=0;i<3;i++) {
-    h = dht.readHumidity();
-    t = dht.readTemperature();
-    if(!(isnan(h) || h == 0.0f || isnan(t))) {
-      break;
-    } else if(i==3) {
-      return false;
-    }
-    delay(200);
-  }
-
-  weather->humid = h;
-  weather->temp = t;
-  
-  DEBUG_PRINT("Temperature:");
-  DEBUG_PRINT(t, 1);
-  DEBUG_PRINT(" Humidity:");
-  DEBUG_PRINTLN(h, 1);
-
-  return true;
-}*/
 
 bool checkBatt() {
   int i;
@@ -128,7 +103,6 @@ void onOffScreen(bool onOff) {
     delay(2500);
   } else {
     pinMode(DISPLAY_VCC_PIN, INPUT);
-    //digitalWrite(DISPLAY_VCC_PIN, HIGH);
     TWCR = 0; //I2C connection reset
     pinMode(18, INPUT);
     digitalWrite(18, LOW);
@@ -144,8 +118,6 @@ void initScreen(void) {
   display.setTextColor(WHITE);
   display.cp437(true);
   display.setRotation(0);
-  //screenOn = true;
-  //screenOnTime = millis();
 }
 
 void onOffPiezo(bool onOff) {
@@ -418,8 +390,6 @@ void setup() {
   Serial.begin(9600);
 #endif
   pinMode(PIEZO_PIN, OUTPUT);
-  //digitalWrite(DISPLAY_VCC_PIN, HIGH); //Pin is high directly when declaring output
-  //pinMode(DISPLAY_VCC_PIN, OUTPUT);
   pinMode(DHT_VCC_PIN, OUTPUT);
   
   pinMode(PUSHBUTTON_PIN, INPUT_PULLUP);
