@@ -21,7 +21,7 @@
 #define BATT_ADC_PIN A0 //Arduino-Pin 14, phys. Pin 23
 #define BATT_VOLT_DIV_GND_PIN 10 //phys. Pin 16
 
-//#define APP_DEBUG
+#define APP_DEBUG
 
 #ifdef APP_DEBUG
   #define DEBUG_PRINT(...)		Serial.print(__VA_ARGS__)
@@ -79,6 +79,7 @@ bool readWeather(weatherData_t *weather) {
 }*/
 
 bool checkBatt() {
+  return true;
   int i;
   unsigned int avg_voltage = 0;
   unsigned int battVolt;
@@ -93,7 +94,8 @@ bool checkBatt() {
   }
   pinMode(BATT_VOLT_DIV_GND_PIN, INPUT);
   avg_voltage /= 5;
-  battVolt = map(avg_voltage, 0, 1023, 0, 4758); //last value: how many mV get converted to 1.1V through the voltage divider, depends on exact values of resistors
+  battVolt = map(avg_voltage, 0, 1023, 0, 4559); //last value: how many mV get converted to 1.1V (here: 1.054V) through the voltage divider, depends on exact values of resistors
+  battVolt += 22; //voltage divider between Vcc and 0.022V ("GND" on BATT_VOLT_DIV_GND_PIN)
 #ifdef APP_DEBUG
   DEBUG_PRINTLN(battVolt);
 #endif
