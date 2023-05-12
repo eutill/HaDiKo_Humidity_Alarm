@@ -8,7 +8,7 @@
 #define ALARM_END_HUMIDITY 60.0f
 #define MEASURE_CYCLE_SEC 60
 #define VIGILANCE_DURATION_SEC 60 //should be a multiple of MEASURE_CYCLE_SEC
-#define PIEZO_MAX_DURATION_SEC 20 //should be greater than SCREEN_ON_DURATION_SEC
+#define PIEZO_MAX_DURATION_SEC 15 //should be greater than SCREEN_ON_DURATION_SEC
 #define PIEZO_OFF_DURATION_SEC 300 //should be a multiple of MEASURE_CYCLE_SEC
 #define SCREEN_ON_DURATION_SEC 10
 #define MAX_PIEZO_CYCLES 2
