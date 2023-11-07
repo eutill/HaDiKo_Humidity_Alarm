@@ -73,9 +73,8 @@ bool checkBatt() {
   avgVolt /= 5.0;
   avgVolt *= (1080.0/1024.0); //1080 mV is Vref, corresponding to 1024 ADC value
   battVolt = (avgVolt - 22) * 3.32587 + avgVolt; //voltage divider is between Vcc and ~22mV ("GND" on BATT_VOLT_DIV_GND_PIN), 3.32587 is ratio between R1 and R2
-#ifdef APP_DEBUG
   DEBUG_PRINTLN(battVolt);
-#endif
+
   if(battVolt < LOW_BATT_THR) {
     return false;
   } else {
@@ -87,15 +86,16 @@ bool readWeather(weatherData_t *weather) {
   for(int i=0;i<3;i++) {
     if(dht.readWeather(weather)) {
       if(!(weather->humid == 0.0f) && (weather->humid <= 100.0f)) {
-        DEBUG_PRINT("Temperature:");
+        DEBUG_PRINT(F("Temperature:"));
         DEBUG_PRINT(weather->temp, 1);
-        DEBUG_PRINT(" Humidity:");
+        DEBUG_PRINT(F(" Humidity:"));
         DEBUG_PRINTLN(weather->humid, 1);
         return true;
       }
     }
     delay(1000);
   }
+  DEBUG_PRINTLN(F("Invalid measurement"));
   return false;
 }
 
