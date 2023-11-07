@@ -282,8 +282,8 @@ alarm_state_t stateVigilance (void) {
         i--;
         displayWeather(&currentWeather, true);
       }
-    } else { //read fail
-      return STATE_NO_ALARM;
+    } else { //read fail, don't count this
+      i--;
     }
   }
   
@@ -296,13 +296,12 @@ alarm_state_t stateAlarmPiezo (void) {
     return STATE_ALARM_SILENT;
   }
   
-
   weatherData_t currentWeather;
 
   if(!readWeather(&currentWeather)) {
-    return STATE_NO_ALARM;
+    return STATE_ALARM_SILENT; //invalid readings are being ignored instead of returning STATE_NO_ALARM because in this case, after vigilance state, the alarm would go off again, resetting the currPiezoCycle counter. In a constantly moist environment with spurious false readings over a long period of time, this would make the piezo alarm go off more than MAX_PIEZO_CYCLES times.
   }
-  if(currentWeather.humid < ALARM_START_HUMIDITY) {
+  if(currentWeather.humid <= ALARM_END_HUMIDITY) {
     return STATE_NO_ALARM;
   }
 
@@ -329,7 +328,7 @@ alarm_state_t stateAlarmPiezo (void) {
   for(i=j;i>0;i--) {
     buttonPressed = goToSleep(sleepDuration);
     if(!readWeather(&currentWeather)) {
-      nextState = STATE_NO_ALARM;
+      nextState = STATE_ALARM_SILENT; //invalid readings are being ignored instead of returning STATE_NO_ALARM because in this case, after vigilance state, the alarm would go off again, resetting the currPiezoCycle counter. In a constantly moist environment with spurious false readings over a long period of time, this would make the piezo alarm go off more than MAX_PIEZO_CYCLES times.
       break;
     }
     if(currentWeather.humid <= ALARM_END_HUMIDITY) {
@@ -360,7 +359,8 @@ alarm_state_t stateAlarmSilent(void) {
   for(i=j;i>0;i--) {
     buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
     if(!readWeather(&currentWeather)) {
-      return STATE_NO_ALARM;
+      i++;
+      continue; //invalid readings are being ignored instead of returning STATE_NO_ALARM because in this case, after vigilance state, the alarm would go off again, resetting the currPiezoCycle counter. In a constantly moist environment with spurious false readings over a long period of time, this would make the piezo alarm go off more than MAX_PIEZO_CYCLES times.
     }
     if(currentWeather.humid <= ALARM_END_HUMIDITY) {
       if(buttonPressed) {
