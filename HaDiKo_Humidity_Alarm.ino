@@ -94,7 +94,7 @@ bool readWeather(weatherData_t *weather) {
         return true;
       }
     }
-    delay(200);
+    delay(1000);
   }
   return false;
 }
@@ -295,7 +295,7 @@ alarm_state_t stateAlarmPiezo (void) {
   if(currPiezoCycle == MAX_PIEZO_CYCLES) {
     return STATE_ALARM_SILENT;
   }
-  currPiezoCycle++;
+  
 
   weatherData_t currentWeather;
 
@@ -305,7 +305,8 @@ alarm_state_t stateAlarmPiezo (void) {
   if(currentWeather.humid < ALARM_START_HUMIDITY) {
     return STATE_NO_ALARM;
   }
-  
+
+  currPiezoCycle++;
   onOffPiezo(true);
 
   if(displayWeather(&currentWeather, true)) { //button pressed, piezo already off
