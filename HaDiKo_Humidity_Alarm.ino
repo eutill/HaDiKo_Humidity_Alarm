@@ -127,9 +127,11 @@ void initScreen(void) {
 
 void onOffPiezo(bool onOff) {
   if(onOff) {
+    pinMode(PIEZO_PIN, OUTPUT);
     digitalWrite(PIEZO_PIN, HIGH);
   } else {
     digitalWrite(PIEZO_PIN, LOW);
+    pinMode(PIEZO_PIN, INPUT);
   }
 }
 
@@ -420,12 +422,11 @@ void setup() {
 #endif
 
   //provide a short acoustic information that device has (re)started
-  pinMode(PIEZO_PIN, OUTPUT);
   onOffPiezo(true);
   delay(500);
   onOffPiezo(false);
+
   pinMode(DHT_VCC_PIN, OUTPUT);
-  
   pinMode(PUSHBUTTON_PIN, INPUT_PULLUP);
 
   battOk = checkBatt();
