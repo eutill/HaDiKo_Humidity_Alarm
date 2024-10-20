@@ -35,4 +35,4 @@ With these efforts, we managed to reduce the deep-sleep total device current to 
 - What seemed to be a nasty, hard-to-trace error that hung up the device, turned out to be a simple brown-out reset when drawing too much current from the batteries: the voltage dropped because there was substantial corrosion on one battery contact. Further evidence was obtained when increasing the brown-out threshold voltage by modifying the `efuse`. This exacerbated the problem. After scraping and cleaning the contact, the problem was resolved.
 
 ### Algorithm flow chart
-![Algorithm flow chart](Algorithm flow.jpg)
+![Algorithm flow chart](algorithm-flow.jpg)
