@@ -214,7 +214,7 @@ bool goToSleep(unsigned int sleepSec) {
   return buttonPressed;
 }
 
-bool displayWeather(bool alarm) {
+bool displayWeather(bool alarm, bool piezo = false) {
   bool buttonPressed = false;
 
   //power up screen
@@ -235,6 +235,11 @@ bool displayWeather(bool alarm) {
   display.print(weather.humid, 1);
   display.print(" % ");
   display.display();
+
+  if(piezo) {
+    onOffPiezo(true);
+    DEBUG_PRINTLN(F("ALA\tPIEZO ON"));
+  }
 
   unsigned long displayStart = millis();
 
@@ -258,22 +263,18 @@ bool displayWeather(bool alarm) {
 
 alarm_state_t stateNoAlarm (void) {
   currPiezoCycle = 0;
-  bool buttonPressed;
+
   while(1) {
-    buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    if(goToSleep(MEASURE_CYCLE_SEC)) { //button pressed
+      displayWeather(false);
+      if(battOk) {
+        battOk = checkBatt();
+      }
+    }
     if(readWeather()) {
       if((weather.humid >= ALARM_START_HUMIDITY) && battOk) {
         DEBUG_PRINTLN(F("NOA\tTHR EXC"));
-        if(buttonPressed) {
-          displayWeather(true);
-        }
         return STATE_VIGILANCE;
-      }
-      if(buttonPressed) {
-        if(battOk) {
-          battOk = checkBatt();
-        }
-        displayWeather(false);
       }
     }
   }
@@ -281,53 +282,42 @@ alarm_state_t stateNoAlarm (void) {
 
 alarm_state_t stateVigilance (void) {
   const int j = VIGILANCE_DURATION_SEC / MEASURE_CYCLE_SEC;
-  bool buttonPressed;
+
   for(int i=0;i<j;i++) {
-    buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    if(goToSleep(MEASURE_CYCLE_SEC)) { //button pressed, don't count this
+      i--;
+      displayWeather(true);
+    }
     if(readWeather()) {
       if(weather.humid < ALARM_START_HUMIDITY) {
         DEBUG_PRINTLN(F("VIG\tHUM BELOW THR"));
-        if(buttonPressed) {
-          displayWeather(false);
-        }
         return STATE_NO_ALARM;
-      }
-      if(buttonPressed) { //button was pressed, don't count this
-        i--;
-        displayWeather(true);
       }
     } else { //read fail, don't count this
       i--;
     }
   }
-  DEBUG_PRINTLN(F("VIG\tALARM START"));
+
   //Alarm!
+  DEBUG_PRINTLN(F("VIG\tALARM START"));
   return STATE_ALARM_PIEZO;
 }
 
 alarm_state_t stateAlarmPiezo (void) {
   if(currPiezoCycle == MAX_PIEZO_CYCLES) {
-    DEBUG_PRINTLN(F("ALA\tMAX_CYCLES REACHED"));
+    DEBUG_PRINTLN(F("ALA\tMAX CYCLES REACHED"));
     return STATE_ALARM_SILENT;
-  }
-  
-  if(!readWeather()) {
-    DEBUG_PRINTLN(F("ALA\tBAD READ1"));
-    return STATE_ALARM_SILENT; //invalid readings are being ignored instead of returning STATE_NO_ALARM because in this case, after vigilance state, the alarm would go off again, resetting the currPiezoCycle counter. In a constantly moist environment with spurious false readings over a long period of time, this would make the piezo alarm go off more than MAX_PIEZO_CYCLES times.
-  }
-  if(weather.humid <= ALARM_END_HUMIDITY) {
-    DEBUG_PRINTLN(F("ALA\tHUM BEL THR1"));
-    return STATE_NO_ALARM;
   }
 
   currPiezoCycle++;
-  onOffPiezo(true);
-  DEBUG_PRINTLN(F("ALA\tPIEZO ON"));
+  //Piezo is turned on in displayWeather method
 
-  if(displayWeather(true)) { //button pressed, piezo already off
+  if(displayWeather(true, true)) { //button pressed, piezo already off
     DEBUG_PRINTLN(F("ALA\tALARM STOP1"));
     return STATE_ALARM_SILENT;
   }
+
+  //At this point, of the PIEZO_MAX_DURATION_SEC, SCREEN_ON_DURATION_SEC have elapsed. The rest of the alarm time needs to be covered by sleep.
 
   int i, j;
   unsigned int sleepDuration;
@@ -339,27 +329,27 @@ alarm_state_t stateAlarmPiezo (void) {
     j = (PIEZO_MAX_DURATION_SEC - SCREEN_ON_DURATION_SEC) / MEASURE_CYCLE_SEC;
   }
   
-  bool buttonPressed;
   alarm_state_t nextState = STATE_ALARM_SILENT;
  
   for(i=j;i>0;i--) {
-    buttonPressed = goToSleep(sleepDuration);
+    if(goToSleep(sleepDuration)) { //button pressed, mutes piezo
+      displayWeather(true);
+      break;
+    }
+
+    //if this is the last cycle in the loop, mute piezo before reading the weather
+    if(i==1) {
+      onOffPiezo(false);
+    }
+
     if(!readWeather()) {
-      nextState = STATE_ALARM_SILENT; //invalid readings are being ignored instead of returning STATE_NO_ALARM because in this case, after vigilance state, the alarm would go off again, resetting the currPiezoCycle counter. In a constantly moist environment with spurious false readings over a long period of time, this would make the piezo alarm go off more than MAX_PIEZO_CYCLES times.
-      DEBUG_PRINTLN(F("ALA\tBAD READ2"));
+      //invalid readings are being ignored instead of returning STATE_NO_ALARM because in this case, after vigilance state, the alarm would go off again, resetting the currPiezoCycle counter. In a constantly moist environment with spurious false readings over a long period of time, this would make the piezo alarm go off more than MAX_PIEZO_CYCLES times.
+      DEBUG_PRINTLN(F("ALA\tBAD READ"));
       break;
     }
     if(weather.humid <= ALARM_END_HUMIDITY) {
-      DEBUG_PRINTLN(F("ALA\tHUM BEL THR2"));
-      if(buttonPressed) {
-        displayWeather(false);
-      }
+      DEBUG_PRINTLN(F("ALA\tHUM BEL THR"));
       nextState = STATE_NO_ALARM;
-      break;
-    }
-    if(buttonPressed) {
-      displayWeather(true);
-      nextState = STATE_ALARM_SILENT;
       break;
     }
   }
@@ -367,6 +357,7 @@ alarm_state_t stateAlarmPiezo (void) {
   if(nextState == STATE_ALARM_SILENT) {
     DEBUG_PRINTLN(F("ALA\tNEXT SILENT"));
   }
+
   DEBUG_PRINTLN(F("ALA\tALARM STOP2"));
   onOffPiezo(false);
   return nextState;
@@ -376,10 +367,12 @@ alarm_state_t stateAlarmPiezo (void) {
 alarm_state_t stateAlarmSilent(void) {
   int i;
   const int j = PIEZO_OFF_DURATION_SEC / MEASURE_CYCLE_SEC;
-  bool buttonPressed;
   
   for(i=j;i>0;i--) {
-    buttonPressed = goToSleep(MEASURE_CYCLE_SEC);
+    if(goToSleep(MEASURE_CYCLE_SEC)) { //button pressed
+      displayWeather(true);
+      i++; //don't count this cycle
+    }
     if(!readWeather()) {
       DEBUG_PRINTLN(F("SIL\tBAD READ"));
       i++;
@@ -387,15 +380,7 @@ alarm_state_t stateAlarmSilent(void) {
     }
     if(weather.humid <= ALARM_END_HUMIDITY) {
       DEBUG_PRINTLN(F("SIL\tHUM BEL THR"));
-      if(buttonPressed) {
-        displayWeather(false);
-      }
       return STATE_NO_ALARM;
-    }
-
-    if(buttonPressed) {
-      displayWeather(true);
-      i++;
     }
   }
 
@@ -438,7 +423,14 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  alarm_state_t currentState = STATE_NO_ALARM;
+  alarm_state_t currentState;
+  while(!readWeather()); //Keep reading sensor as long as reading is invalid
+  if((weather.humid >= ALARM_START_HUMIDITY) && battOk) {
+    currentState = STATE_VIGILANCE;
+  } else {
+    currentState = STATE_NO_ALARM;
+  }
+
   while(1) {
     DEBUG_PRINT(F("\nCTL\tEntering state "));
     DEBUG_PRINTLN(alarm_state_str[currentState]);
