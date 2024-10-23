@@ -129,7 +129,7 @@ void onOffScreen(bool onOff) {
   if(onOff) {
     pinMode(DISPLAY_VCC_PIN, OUTPUT);
     digitalWrite(DISPLAY_VCC_PIN, LOW); //inverted logic because PNP
-    delay(2500);
+    delay(2000); //needs time to boot
     initScreen();
   } else {
     digitalWrite(DISPLAY_VCC_PIN, HIGH); //inverted logic because PNP
